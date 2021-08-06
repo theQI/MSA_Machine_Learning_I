@@ -1,0 +1,222 @@
+---
+title: "Lab 1: Classification Techniques - Online News Dataset"
+author:
+- "Group 1"
+- "Laxman Panthi"
+- "Zubin Shah"
+date: "4/29/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, results='hide'}
+library(tidyverse)
+library(C50)
+library(gmodels)
+library(kernlab)
+library(rpart)
+library(rpart.plot)
+```
+
+### Step 1: Collecting the Data
+
+#### loading the data
+```{r}
+data <- read.csv("OnlineNewsPopularity.csv")
+```
+
+#### checking NA's
+```{r}
+sum(is.na(data))
+```
+No NA's, good deal.
+
+
+#### generate summary to briefly look at data
+```{r}
+summary(data)
+```
+
+## Problem Statement
+The problem here is to predict the popularity of each news, lets say the news with above median number of shares are popular.
+
+#### checking the normality of the data
+```{r}
+hist(data$shares)
+```
+Data is not so normal.
+
+```{r}
+hist(log(data$shares+5))
+```
+Looks good with the logarithmic.
+
+#### convert logical to factors, create a binary variable for popularity, also create a normal dependent variable
+```{r}
+dataSelect <- data
+dataSelect$data_channel_is_lifestyle <- as.factor(dataSelect$data_channel_is_lifestyle)
+dataSelect$data_channel_is_entertainment <- as.factor(dataSelect$data_channel_is_entertainment)
+dataSelect$data_channel_is_bus <- as.factor(dataSelect$data_channel_is_bus)
+dataSelect$data_channel_is_socmed <- as.factor(dataSelect$data_channel_is_socmed)
+dataSelect$data_channel_is_tech <- as.factor(dataSelect$data_channel_is_tech)
+dataSelect$data_channel_is_world <- as.factor(dataSelect$data_channel_is_world)
+dataSelect$weekday_is_monday <- as.factor(dataSelect$weekday_is_monday)
+dataSelect$weekday_is_tuesday <- as.factor(dataSelect$weekday_is_tuesday)
+dataSelect$weekday_is_wednesday <- as.factor(dataSelect$weekday_is_wednesday)
+dataSelect$weekday_is_thursday <- as.factor(dataSelect$weekday_is_thursday)
+dataSelect$weekday_is_friday <- as.factor(dataSelect$weekday_is_friday)
+dataSelect$weekday_is_saturday <- as.factor(dataSelect$weekday_is_saturday)
+dataSelect$weekday_is_sunday <- as.factor(dataSelect$weekday_is_sunday)
+dataSelect$is_weekend <- as.factor(dataSelect$is_weekend)
+dataSelect$is_popular <- as.factor(ifelse(dataSelect$shares>1400, "yes", "no"))
+dataSelect$popularity_ranking <- cut(dataSelect$shares, 5, include.lowest=TRUE, labels=c("Very Low","Low", "Med", "High", "Very High"))
+dataSelect$shares_norm <- log(dataSelect$shares+5)
+str(dataSelect)
+```
+
+### Step 2: Exploring the Data
+
+#### evaluating news is popular vs not, also the ranking
+```{r}
+table(dataSelect$is_popular)
+table(dataSelect$popularity_ranking)
+```
+
+#### randomizing the data
+```{r}
+set.seed(123456)
+dataRand <- dataSelect[order(runif(39644)),]
+```
+
+#### evaluating there are no substantive changes in the data
+```{r}
+summary(dataSelect$is_popular)
+summary(dataRand$is_popular)
+```
+Pretty good.
+
+#### creating training & testing dataset (90% observation allocated to training)
+```{r}
+dataTrain <- dataRand[1: 29733, ]
+dataTest <- dataRand[29734:39644, ]
+```
+
+#### checking the percentage of split in train and test dataset
+```{r}
+prop.table(table(dataTrain$is_popular))
+prop.table(table(dataTest$is_popular))
+```
+Looks about right.
+
+### Step 3: Training the model on Data
+
+###### -------------------------------------------------------------------------------------------------------------------------------------------- ######
+
+### Method 1: Tree-Based Classification 
+
+#### creating & calling the model
+```{r}
+treeModel <- C5.0.default(x = dataTrain[-c(1,2,61,62,63,64)], y= dataTrain$is_popular)
+treeModel
+```
+
+#### examining the decision tree
+```{r}
+summary(treeModel)
+```
+
+### Step 4: Evaluating Model Performance
+
+#### fitting the model onto test dataset
+```{r}
+popularity_pred <- predict(treeModel, dataTest)
+```
+
+#### creating a confusion matrix to evaulate the performance
+```{r}
+CrossTable(dataTest$is_popular, popularity_pred, prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, 
+           dnn = c("Actual Default", "Predicted Default"))
+```
+
+
+###### -------------------------------------------------------------------------------------------------------------------------------------------- ######
+
+## Method 2: Support Vector Machines
+
+#### creating the model
+```{r}
+svmModel <- ksvm(popularity_ranking~., data = dataTrain[-c(1,2,61,62,64)], kernel = "vanilladot")
+svmModel
+```
+
+### Step 4: Evaluating Model Performance
+
+#### fitting the model onto test dataset
+```{r}
+svmPredict <- predict(svmModel, dataTest)
+```
+
+#### confusion table
+```{r}
+table(svmPredict, dataTest$popularity_ranking)
+```
+
+#### summarizing the predictions
+```{r}
+agreement <- svmPredict == dataTest$popularity_ranking
+table(agreement)
+```
+
+
+###### -------------------------------------------------------------------------------------------------------------------------------------------- ######
+
+## Method 3: Adding Regression to Trees
+
+### Step 3: Training the model on data
+
+#### creating the model
+```{r}
+rpartModel <- rpart(shares_norm~., data=dataTrain[-c(1,2,61,62,63)])
+rpartModel
+```
+
+#### creating the tree plot
+
+##### plot 1
+```{r}
+rpart.plot(rpartModel, digits = 3)
+```
+
+##### plot 2
+```{r}
+rpart.plot(rpartModel, digits = 4, fallen.leaves = TRUE, type=3, extra = 101)
+```
+
+### Step 4: Evaluating Model Performance
+
+#### fitting the model onto test dataset
+```{r}
+rpartPredict <- predict(rpartModel, dataTest)
+```
+
+#### summarizing the model
+```{r}
+summary(rpartPredict)
+summary(dataTest$shares_norm)
+```
+
+#### checking the correlation
+```{r}
+cor(rpartPredict, dataTest$shares_norm)
+```
+
+## Result & Discussion
+We created a dummy variable for the popularity for the first method, gives about 66% accuracy.
+Second method is not so suitable as there is high number of outliers.
+In the third method, we created a normal variable for the number of shares as it was not normal, but the model is not optimal.
+
+
+### End Of Document

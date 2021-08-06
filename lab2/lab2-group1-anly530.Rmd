@@ -1,0 +1,233 @@
+---
+title: "Lab2 - Naive Bayes Model"
+author: "Group 1 - Laxman Panthi; Zubin Shah"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+
+```{r,echo=F,include=F}
+library(tidyverse)
+library(naivebayes)
+library(caret)
+library(randomForest)
+```
+
+## Credit Rating Dataset
+
+```{r, echo=F}
+creditData <- read_csv("creditData.csv")
+```
+
+### Data Exploration
+```{r, echo=FALSE}
+summary(creditData)
+```
+The dataset consists of 1000 observations and 21 variables.
+
+### Data Preprocessing
+```{r}
+creditData$Creditability <- as.factor(creditData$Creditability)
+sum(is.na(creditData))
+```
+No NA values.
+
+```{r}
+# 75% means 750 for training and the rest for testing
+set.seed(12345)
+credit_rand <- creditData[order(runif(1000)), ]
+credit_train <- credit_rand[1:750, ]
+credit_test <- credit_rand[751:1000, ]
+```
+
+```{r}
+prop.table(table(credit_train$Creditability))
+```
+
+```{r}
+prop.table(table(credit_test$Creditability))
+```
+ The datasets look well distributed.
+
+
+### Full Model
+```{r}
+naive_model <- naive_bayes(Creditability ~ ., data= credit_train)
+naive_model
+```
+
+#### Confusion Matrix
+```{r}
+conf_nat <- table(predict(naive_model, credit_test), credit_test$Creditability)
+conf_nat
+```
+The false negative percentage is higher than the false positive.
+
+
+```{r}
+Accuracy <- sum(diag(conf_nat))/sum(conf_nat)*100
+Accuracy
+```
+This is an okay accuracy.
+
+### Optimization
+
+```{r}
+
+creditDataScaled <- scale(credit_rand[,2:ncol(credit_rand)], center=TRUE, scale = TRUE)
+m <- cor(creditDataScaled)
+highlycor <- findCorrelation(m, 0.30)
+highlycor
+```
+
+```{r}
+#check how the above variables are correlated with the dependent variable
+check <- credit_rand%>%select(highlycor,1)
+check$Creditability<-as.numeric(check$Creditability)
+cor(check)
+```
+
+
+```{r}
+filteredData <- credit_rand[, -(c(6,13,20,16))]
+filteredTraining <- filteredData[1:750, ]
+filteredTest <- filteredData[751:1000, ]
+```
+
+### Optimized Model
+```{r}
+nb_model <- naive_bayes(Creditability ~ ., data=filteredTraining)
+nb_model
+```
+
+
+```{r}
+filteredTestPred <- predict(nb_model, newdata = filteredTest)
+table(filteredTestPred, filteredTest$Creditability)
+```
+
+
+```{r}
+conf_nat <- table(filteredTestPred, filteredTest$Creditability)
+conf_nat
+```
+
+```{r}
+Accuracy <- sum(diag(conf_nat))/sum(conf_nat)*100
+Accuracy
+```
+
+
+## News Popularity Dataset
+```{r}
+newsShort <- read_csv("OnlineNewsPopularity.csv")%>%
+  select("n_tokens_title", "n_tokens_content", "n_unique_tokens", "n_non_stop_words", "num_hrefs", "num_imgs", "num_videos", "average_token_length", "num_keywords", "kw_max_max", "global_sentiment_polarity", "avg_positive_polarity", "title_subjectivity", "title_sentiment_polarity", "abs_title_subjectivity", "abs_title_sentiment_polarity", "shares")
+```
+
+### Data Pre-Processing
+```{r}
+newsShort <- newsShort%>%
+  mutate(popular=if_else((shares >= 1400),1,0))%>%
+  select(-shares)
+newsShort$popular <- as.factor(newsShort$popular)
+glimpse(newsShort)
+```
+
+```{r}
+news_rand <- newsShort[order(runif(10000)), ]
+set.seed(12345)
+
+#Split the data into training and test datasets
+news_train <- news_rand[1:9000, ]
+news_test <- news_rand[9001:10000, ]
+```
+
+
+### Full Model
+```{r}
+nb_model <- naive_bayes(popular ~ ., data=news_train)
+nb_model
+```
+
+### Create Prediction
+```{r}
+news_Pred <- predict(nb_model, newdata = news_test)
+conf_nat <- table(news_Pred, news_test$popular)
+conf_nat
+```
+
+
+```{r}
+Accuracy <- sum(diag(conf_nat))/sum(conf_nat)*100
+Accuracy
+```
+
+
+Not great.
+
+
+### Optimization
+
+To optimize the model, we will look how we can remove variables which are correlated with each other and remove the highly correlated ones withoput affecting the model.
+```{r}
+
+newsDataScaled <- scale(news_rand[,0:(ncol(news_rand)-1)], center=TRUE, scale = TRUE)
+m <- cor(newsDataScaled)
+highlycor <- findCorrelation(m, 0.30)
+highlycor
+```
+These are the indices of the variables that are highly correlated with each other. Below, we run a correlation of these variables with the dependent variables
+
+```{r}
+#check how the above variables are correlated with the dependent variable
+check <- news_rand%>%select(3,16,2,4,12,13,17)
+check$popular<-as.numeric(check$popular)
+cor(check)
+```
+
+```{r}
+findCorrelation(m,0.6)
+```
+
+
+
+Below, we create a filtered dataset by disselecting the varaibles that are highly likely to create high pairwise correlation, applied trial & error basis.
+```{r}
+filteredData <- news_rand%>%select(-n_unique_tokens,-n_non_stop_words,-abs_title_sentiment_polarity,-num_keywords)
+filteredTraining <- filteredData[1:750, ]
+filteredTest <- filteredData[751:1000, ]
+```
+
+
+### Optimized Model
+```{r}
+nb_model <- naive_bayes(popular ~ ., data=filteredTraining)
+nb_model
+```
+
+
+```{r}
+filteredTestPred <- predict(nb_model, newdata = filteredTest)
+table(filteredTestPred, filteredTest$popular)
+```
+```{r}
+tab <- table(filteredTestPred, filteredTest$popular)
+caret::confusionMatrix(tab)
+```
+
+
+```{r}
+conf_nat <- table(filteredTestPred, filteredTest$popular)
+conf_nat
+```
+
+```{r}
+Accuracy <- sum(diag(conf_nat))/sum(conf_nat)*100
+Accuracy
+```
+
+Accuracy is better.
+

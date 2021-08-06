@@ -1,0 +1,221 @@
+---
+title: "Lab 1: Classification Techniques - Examples"
+author:
+- "Group 1"
+- "Laxman Panthi"
+- "Zubin Shah"
+date: "4/29/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, results='hide'}
+library(C50)
+library(gmodels)
+library(kernlab)
+library(rpart)
+library(rpart.plot)
+```
+
+###### -------------------------------------------------------------------------------------------------------------------------------------------- ######
+
+## Method 1: Tree-Based Classification 
+
+### Step 1: Collecting the Data
+
+#### loading the data
+```{r}
+credit <- read.csv("credit.csv")
+```
+
+#### checking the structure of the data
+```{r}
+str(credit)
+```
+
+### Step 2: Exploring the Data
+
+#### summarizing the amount variable
+```{r}
+summary(credit$amount)
+```
+
+#### evaluating number of loans defaulted vs not
+```{r}
+table(credit$default)
+```
+
+#### randomizing the data
+```{r}
+set.seed(12345)
+credit_rand <- credit[order(runif(1000)),]
+```
+
+#### evaluating there are no substantive changes in the data
+```{r}
+summary(credit$amount)
+summary(credit_rand$amount)
+```
+
+#### creating training & testing dataset (90% observation allocated to training)
+```{r}
+credit_train <- credit_rand[1:900, ]
+credit_test <- credit_rand[901:1000, ]
+```
+
+#### checking the percentage of split in train and test dataset
+```{r}
+prop.table(table(credit_train$default))
+prop.table(table(credit_test$default))
+```
+Looks about right.
+
+### Step 3: Training the model on Data
+
+#### creating & calling the model
+```{r}
+credit_model <- C5.0.default(x = credit_train[-17], y= credit_train$default)
+credit_model
+```
+
+#### examining the decision tree
+```{r}
+summary(credit_model)
+```
+
+### Step 4: Evaluating Model Performance
+
+#### fitting the model onto test dataset
+```{r}
+cred_pred <- predict(credit_model, credit_test)
+```
+
+#### creating a confusion matrix to evaulate the performance
+```{r}
+CrossTable(credit_test$default, cred_pred, prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE, 
+           dnn = c("Actual Default", "Predicted Default"))
+```
+
+
+###### -------------------------------------------------------------------------------------------------------------------------------------------- ######
+
+## Method 2: Support Vector Machines
+
+### Step 1: Collecting the Data
+
+#### loading the data
+```{r}
+letters <- read.csv("letterdata.csv")
+```
+
+#### checking the structure of the data
+```{r}
+str(letters)
+```
+
+### Step 2: Preparing  the Data
+
+#### splitting the data into training and test
+```{r}
+letters_train <- letters[1:18000,]
+letters_test <- letters[18001:20000,]
+```
+
+### Step 3: Training the model on data
+
+#### creating the model
+```{r}
+letter_classifier <- ksvm(letter~., data= letters_train, kernel = "vanilladot")
+letter_classifier
+```
+
+### Step 4: Evaluating Model Performance
+
+#### fitting the model onto test dataset
+```{r}
+letter_predictions <- predict(letter_classifier, letters_test)
+```
+
+#### confusion table
+```{r}
+table(letter_predictions, letters_test$letter)
+```
+
+#### summarizing the predictions
+```{r}
+agreement <- letter_predictions == letters_test$letter
+table(agreement)
+```
+
+###### -------------------------------------------------------------------------------------------------------------------------------------------- ######
+
+## Method 3: Adding Regression to Trees
+
+### Step 1: Collecting the Data
+
+#### loading the data
+```{r}
+wine <- read.csv("whitewines.csv")
+```
+
+#### checking the structure of the data
+```{r}
+str(wine)
+```
+
+#### checking the normality of the data
+```{r}
+hist(wine$quality)
+```
+Yes, data is normal.
+
+### Step 2: Preparing  the Data
+
+#### splitting the data into training and test
+```{r}
+wine_train <- wine[1:3750,]
+wine_test <- wine[3751:4898,]
+```
+
+### Step 3: Training the model on data
+
+#### creating the model
+```{r}
+m.rpart <- rpart(quality ~ ., data=wine_train)
+m.rpart
+```
+
+#### creating the tree plot
+
+##### plot 1
+```{r}
+rpart.plot(m.rpart, digits = 3)
+```
+
+##### plot 2
+```{r}
+rpart.plot(m.rpart, digits = 4, fallen.leaves = TRUE, type=3, extra = 101)
+```
+
+### Step 4: Evaluating Model Performance
+
+#### fitting the model onto test dataset
+```{r}
+p.rpart <- predict(m.rpart, wine_test)
+```
+
+#### summarizing the model
+```{r}
+summary(p.rpart)
+summary(wine_test$quality)
+```
+
+#### checking the correlation
+```{r}
+cor(p.rpart, wine_test$quality)
+```
+
+#### End Of Document.

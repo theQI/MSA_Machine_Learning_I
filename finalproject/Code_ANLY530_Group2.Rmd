@@ -1,0 +1,367 @@
+---
+title: "Final Project"
+author: "Laxman Panthi & Zubin Shah"
+date: "June 7, 2019"
+output: word_document
+---
+
+```{r}
+library(rpart)
+```
+
+
+## Overview
+
+
+
+## STEP 1: Data Pre-Processing & Exploratory Data Ananlysis
+```{r}
+#setting the working directory
+#setwd("C:\\Users\\zusha01\\Desktop\\HU Analytics\\Sem 3\\ANLY 530 Machine Learning 1\\Final Project")
+
+# Importing the dataset
+dataset <- read.csv('Absenteeism_at_work.csv')
+
+#Exploring the dataset
+head(dataset)
+
+#checking for NA
+sum(is.na(dataset))
+
+# Converting Categorical variables to factors
+dataset$ID <- as.factor(dataset$ID)
+dataset$Month.of.absence <- as.factor(dataset$Month.of.absence)
+dataset$Reason.for.absence <- as.factor(dataset$Reason.for.absence)
+dataset$Day.of.the.week <- as.factor(dataset$Day.of.the.week)
+dataset$Seasons <- as.factor(dataset$Seasons)
+dataset$Disciplinary.failure <- as.factor(dataset$Disciplinary.failure)
+dataset$Education <- as.factor(dataset$Education)
+dataset$Son <- as.factor(dataset$Son)
+dataset$Social.drinker <- as.factor(dataset$Social.drinker)
+dataset$Social.smoker <- as.factor(dataset$Social.smoker)
+dataset$Pet <- as.factor(dataset$Pet)
+
+# Encoding Absentism time in hours into categorical data
+dataset$Absenteeism <- ifelse(dataset$Absenteeism >= 4 & dataset$Absenteeism <=7, 4, dataset$Absenteeism) 
+dataset$Absenteeism <- ifelse(dataset$Absenteeism == 8 , 5, dataset$Absenteeism)
+dataset$Absenteeism <- ifelse(dataset$Absenteeism >= 9 , 6, dataset$Absenteeism) 
+dataset$Absenteeism <- as.factor(dataset$Absenteeism)
+
+#removing old absenteeism column
+dataset <- dataset[,-21]
+
+#evaluating the structure of the dataset
+str(dataset)
+
+```
+
+## STEP 2: Machine Learning - Classification Techniques
+
+```{r}
+# Splitting the dataset into the Training set and Test set
+# install.packages('caTools')
+library(caTools)
+set.seed(12345)
+split = sample.split(dataset$Absenteeism, SplitRatio = 0.8)
+training_set = subset(dataset, split == TRUE)
+test_set = subset(dataset, split == FALSE)
+
+
+# Feature Scaling
+training_set[,c(6:11, 18:20)] = scale(training_set[,c(6:11, 18:20)])
+test_set[,c(6:11, 18:20)] = scale(test_set[,c(6:11, 18:20)])
+```
+
+## KNN 
+
+```{r}
+#Finding the optimum number of k
+library(ISLR)
+library(caret)
+set.seed(12345)
+ctrl <- trainControl(method="repeatedcv",repeats = 5)
+knnFit <- train(Absenteeism ~ ., data = training_set, method = "knn", trControl = ctrl, preProcess = "center",tuneLength = 20)
+k <- knnFit$bestTune[,1]
+
+# Fitting K-NN to the Training set and Predicting the Test set results
+library(class)
+y_pred = knn(train = training_set[, -21],
+             test = test_set[, -21],
+             cl = training_set[, 21],
+             k = k,
+             prob = TRUE)
+
+# Making the Confusion Matrix
+cm = table(test_set[, 21], y_pred)
+cm
+
+#Model Accuracy
+knn_Accuracy <- sum(diag(cm))*100/sum(cm)
+knn_Accuracy
+```
+
+## SVM: Linear
+```{r}
+# Fitting SVM to the Training set
+# install.packages('e1071')
+library(e1071)
+classifier = svm(formula = Absenteeism ~ .,
+                 data = training_set,
+                 type = 'C-classification',
+                 kernel = 'linear')
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set[-21])
+
+# Making the Confusion Matrix
+cm = table(test_set[, 21], y_pred)
+cm
+
+#Model Accuracy
+SVM_Linear_Accuracy <- sum(diag(cm))*100/sum(cm)
+SVM_Linear_Accuracy
+
+```
+
+## SVM: Kernel 
+```{r}
+# Fitting Kernel SVM to the Training set
+# install.packages('e1071')
+library(e1071)
+classifier = svm(formula = Absenteeism ~ .,
+                 data = training_set,
+                 type = 'C-classification',
+                 kernel = 'radial')
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set[-21])
+
+# Making the Confusion Matrix
+cm = table(test_set[, 21], y_pred)
+cm
+
+#Model Accuracy
+SVM_Kernel_Accuracy <- sum(diag(cm))*100/sum(cm)
+SVM_Kernel_Accuracy
+```
+
+## Naive Bayes
+```{r}
+# Fitting SVM to the Training set
+# install.packages('e1071')
+library(e1071)
+classifier = naiveBayes(x = training_set[-21],
+                        y = training_set$Absenteeism)
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set[-21])
+
+# Making the Confusion Matrix
+cm = table(test_set[, 21], y_pred)
+cm
+
+#Model Accuracy
+Naive_Bayes_Accuracy <- sum(diag(cm))*100/sum(cm)
+Naive_Bayes_Accuracy
+```
+
+## Decision Tree
+### Takes forver to run, not included in the report.
+```{r}
+# Fitting Decision Tree Classification to the Training set
+
+classifier = rpart(formula = Absenteeism ~ ., data = training_set, method = "class")
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set[-21], type = 'class')
+
+# Making the Confusion Matrix
+cm = table(test_set[, 21], y_pred)
+cm
+
+#Model Accuracy
+Decision_Tree_Accuracy <- sum(diag(cm))*100/sum(cm)
+Decision_Tree_Accuracy
+```
+
+## Random Forest
+```{r}
+# Fitting Random Forest Classification to the Training set
+# install.packages('randomForest')
+library(randomForest)
+set.seed(12345)
+classifier = randomForest(x = training_set[-21],
+                          y = training_set$Absenteeism,
+                          ntree = 500)
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set[-21])
+
+# Making the Confusion Matrix
+cm = table(test_set[, 21], y_pred)
+cm
+
+#Model Accuracy
+Random_Forest_Accuracy <- sum(diag(cm))*100/sum(cm)
+Random_Forest_Accuracy
+```
+
+
+# Model Improvement: Dimentionality Reduction/ Feature Selection
+
+```{r}
+library(randomForest)
+fit_rf=randomForest(Absenteeism~., data=dataset)
+
+# Create an importance based on mean decreasing gini
+importance(fit_rf)
+ 
+# compare the feature importance with varImp() function
+varImp(fit_rf)
+ 
+# Create a plot of importance scores by random forest
+varImpPlot(fit_rf)
+
+#Idenfitying feature with index >50
+which(fit_rf$importance[,1]>50)
+
+training_set1 <- training_set[,c(2,3,21)]
+test_set1 <- test_set[,c(2,3,21)]
+
+# Fitting SVM to the Training set
+# install.packages('e1071')
+library(e1071)
+classifier = svm(formula = Absenteeism ~ .,
+                 data = training_set1,
+                 type = 'C-classification',
+                 kernel = 'linear')
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set1[-3])
+
+# Making the Confusion Matrix
+cm = table(test_set1[, 3], y_pred)
+cm
+
+#Model Accuracy
+SVM_Improved <- sum(diag(cm))*100/sum(cm)
+SVM_Improved
+
+```
+
+## SVM
+```{r}
+# Fitting SVM to the Training set
+# install.packages('e1071')
+library(e1071)
+classifier = svm(formula = Absenteeism ~ .,
+                 data = training_set1,
+                 type = 'C-classification',
+                 kernel = 'linear')
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set1[-3])
+
+# Making the Confusion Matrix
+cm = table(test_set1[, 3], y_pred)
+cm
+
+#Model Accuracy
+SVM_Improved <- sum(diag(cm))*100/sum(cm)
+SVM_Improved
+```
+
+```{r}
+ #Fitting Random Forest Classification to the Training set
+# install.packages('randomForest')
+library(randomForest)
+set.seed(12345)
+classifier = randomForest(x = training_set1[-3],
+                          y = training_set1$Absenteeism,
+                          ntree = 500)
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set1[-3])
+
+# Making the Confusion Matrix
+cm = table(test_set1[, 3], y_pred)
+cm
+
+#Model Accuracy
+Random_Improved <- sum(diag(cm))*100/sum(cm)
+Random_Improved
+
+```
+
+##Naive Bayes
+```{r}
+# Fitting SVM to the Training set
+# install.packages('e1071')
+library(e1071)
+classifier = naiveBayes(x = training_set1[-3],
+                        y = training_set1$Absenteeism)
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set1[-3])
+
+# Making the Confusion Matrix
+cm = table(test_set1[, 3], y_pred)
+cm
+
+#Model Accuracy
+Naive_Improved <- sum(diag(cm))*100/sum(cm)
+Naive_Improved
+
+```
+
+##KNN
+```{r}
+#Finding the optimum number of k
+library(ISLR)
+library(caret)
+set.seed(12345)
+ctrl <- trainControl(method="repeatedcv",repeats = 5)
+knnFit <- train(Absenteeism ~ ., data = training_set1, method = "knn", trControl = ctrl, preProcess = "center",tuneLength = 20)
+k <- knnFit$bestTune[,1]
+
+# Fitting K-NN to the Training set and Predicting the Test set results
+library(class)
+y_pred = knn(train = training_set1[, -3],
+             test = test_set1[, -3],
+             cl = training_set1[, 3],
+             k = k,
+             prob = TRUE)
+
+# Making the Confusion Matrix
+cm = table(test_set1[, 3], y_pred)
+cm
+
+#Model Accuracy
+knn_Improved <- sum(diag(cm))*100/sum(cm)
+knn_Improved
+```
+
+## Decision Tree
+### Takes forever to run, not included in the report
+```{r}
+# Fitting Decision Tree Classification to the Training set
+# install.packages('rpart')
+library(rpart)
+classifier = rpart(formula = Absenteeism ~ ., data = training_set1, method = "class")
+
+# Predicting the Test set results
+y_pred = predict(classifier, newdata = test_set1[-3], type = 'class')
+
+# Making the Confusion Matrix
+cm = table(test_set1[, 3], y_pred)
+cm
+
+#Model Accuracy
+Decision_Improved <- sum(diag(cm))*100/sum(cm)
+Decision_Improved
+```
+
+```{r}
+
+```
+
+

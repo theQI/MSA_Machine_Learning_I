@@ -1,0 +1,95 @@
+---
+title: "iris data exploration"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Group Members
+## Laxman Panthi
+
+## Zubin Shah
+
+
+
+```{r}
+#libraries
+library(tidyverse)
+library(corrplot)
+```
+
+
+# Data Pre-processing
+## Load the iris data
+
+```{r}
+data(iris)
+```
+
+
+## Data Exploration
+```{r}
+head(iris)
+summary(iris)
+```
+
+```{r}
+glimpse(iris)
+```
+
+
+## Correlation Analysis
+```{r}
+irisNum <- iris%>%select(Petal.Length,Petal.Width,Sepal.Length,Sepal.Width)
+
+corrplot(cor(irisNum), type = "full")
+```
+
+# Analysis
+We are trying to solve it as a classification problem and see if we will be able to develop a model that can identify the classes.
+
+## K-Means Clustering
+```{r}
+set.seed(20)
+irisCluster <- kmeans(iris[, 1:4], centers = 3, nstart = 100)
+irisCluster
+```
+
+
+```{r}
+table(irisCluster$cluster, iris$Species)
+```
+
+```{r}
+plot(iris[c("Sepal.Length", "Sepal.Width")], col=irisCluster$cluster)
+points(irisCluster$centers[,c("Sepal.Length", "Sepal.Width")], col=1:3, pch=8, cex=2)
+```
+
+
+# Results
+Using k-means clustering to cluster the data, we clustered the data into three clusters trying to mimic the cluster we already have. The k-means cluster pass 1 was able to identify the setosa class really goos (100% accuracy), the versicolor class with 96% accuracy, not so great for the virginica.
+
+
+
+## Regression problem - in progress
+
+```{r}
+set.seed(9876)
+irisGlm <- iris
+irisGlm$Species <- factor(irisGlm$Species)
+train <- sample(1:nrow(irisGlm), nrow(irisNum)*.7)
+test <- -train
+
+trainData <- irisGlm[train,]
+testData <- irisGlm[test,]
+```
+
+```{r}
+glm_model1 <- glm(Species~.,data = trainData, family = binomial(link="logit"))
+summary(glm_model1)
+```
+
+### GLM is in progress
+
+
+
